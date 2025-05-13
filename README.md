@@ -1,2 +1,2 @@
-# vehical_parking-v2
+# Vehical Parking-V2
 Modern Application Development 2 Project
