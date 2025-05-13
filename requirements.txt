@@ -1,0 +1,7 @@
+Flask
+Flask-SQLAlchemy
+celery
+flask-security
+Flask-Mail
+flask-cors
+Flask-JWT-Extended
