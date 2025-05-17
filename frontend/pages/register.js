@@ -13,7 +13,7 @@ export default {
 
                 <form @submit.prevent="submitRegister">
                     <div class="form-group mb-3">
-                        <input type="text" id="name" v-model="name" class="form-control" placeholder="Name" required>
+                        <input type="text" id="name" v-model="name" class="form-control" placeholder="Name" autofocus required>
                     </div>
                     <div class="form-group mb-3">
                         <input type="text" id="username" v-model="username" class="form-control" placeholder="Username" required>

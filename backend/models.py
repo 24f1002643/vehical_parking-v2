@@ -25,7 +25,7 @@ class ParkingLot(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     prime_location_name = db.Column(db.String(31), nullable=False)
     address = db.Column(db.String(127), nullable=False)
-    pin_code = db.Column(db.String(7), nullable=False)
+    pincode = db.Column(db.String(7), nullable=False)
     price = db.Column(db.Float, nullable=False) #price per hour
     number_of_spots = db.Column(db.Integer, nullable=False)
     deleted = db.Column(db.Boolean, default=False)
@@ -46,6 +46,7 @@ class ReserveParkingSpot(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     spot_id = db.Column(db.Integer, db.ForeignKey('parking_spot.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    vehicle_number = db.Column(db.String(15), nullable=False)
     parking_timestamp = db.Column(db.DateTime, default=db.func.current_timestamp())
     leaving_timestamp = db.Column(db.DateTime)
     parking_cost = db.Column(db.Float)

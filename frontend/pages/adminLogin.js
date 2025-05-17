@@ -8,7 +8,7 @@ export default {
                 </div>
                 <form @submit.prevent="submitLogin">
                     <div class="form-group mb-3">
-                        <input type="text" id="username" v-model="username" class="form-control" placeholder="Username" required>
+                        <input type="text" id="username" v-model="username" class="form-control" placeholder="Username" autofocus required>
                     </div>
                     <div class="form-group mb-3">
                         <input type="password" id="password" v-model="password" class="form-control" placeholder="Password" required>
