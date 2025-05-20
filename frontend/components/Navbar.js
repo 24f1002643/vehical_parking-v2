@@ -51,9 +51,6 @@ export default {
                             <router-link to="/user/dashboard" class="nav-link px-3">Home</router-link>
                         </li>
                         <li class="nav-item">
-                            <router-link to="/user/search" class="nav-link px-3">Search</router-link>
-                        </li>
-                        <li class="nav-item">
                             <router-link to="/user/summary" class="nav-link px-3">Summary</router-link>
                         </li>
                     </template>

@@ -32,6 +32,7 @@ const app = new Vue({
             this.userRole = null;
             localStorage.removeItem('isAuthenticated');
             localStorage.removeItem('userRole');
+            localStorage.removeItem('username');
             localStorage.removeItem('token');
             this.$router.push('/');
         },
@@ -42,6 +43,7 @@ const app = new Vue({
         handleWindowClose() {
             localStorage.removeItem('isAuthenticated');
             localStorage.removeItem('userRole');
+            localStorage.removeItem('username');
             localStorage.removeItem('token');
         }
     },

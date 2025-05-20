@@ -135,7 +135,7 @@ export default {
                                             <td>{{ reservation.vehicle_number }}</td>
                                             <td>{{ formatDateTime(reservation.parking_time) }}</td>
                                             <td>{{ formatDateTime(reservation.leaving_time) }}</td>
-                                            <td>{{ reservation.parking_cost ? reservation.parking_cost : 0 }}</td>
+                                            <td>{{ reservation.parking_cost ? reservation.parking_cost : N/A }}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -172,7 +172,7 @@ export default {
             this.messageTimer = setTimeout(() => {
                 this.message = null;
                 this.category = null;
-            }, 5000);
+            }, 4000);
             }
         }
     },
@@ -372,8 +372,4 @@ export default {
         },
     },
 };
-
-
-
-
 

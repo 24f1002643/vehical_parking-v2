@@ -42,7 +42,6 @@ export default {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    console.log(data)
                     res = await fetch(location.origin + '/fetch-claims', 
                         {
                             method: 'GET', 
@@ -50,7 +49,7 @@ export default {
                         });                
                     if (res.ok) {
                         const claim_data = await res.json();
-                        console.log(claim_data)
+                        localStorage.setItem('username', this.username);
                         this.$root.login('user', data.access_token);
                         this.$router.push("/user/dashboard")
                     }else{

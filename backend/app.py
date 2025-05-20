@@ -4,6 +4,8 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, Admin, User, ParkingLot, ParkingSpot, ReserveParkingSpot
 import os
+from datetime import datetime, timezone
+import math
 
 
 app = Flask(__name__,
@@ -58,7 +60,9 @@ def login():
     username = request.json.get('username')
     password = request.json.get('password')
     user = User.query.filter(User.username==username).first()
-    if user and check_password_hash(user.password, password):
+    if not user:
+        return jsonify({"category": "danger","message": "You need to first register on site"}), 401
+    if check_password_hash(user.password, password):
         if user.blocked:
           return jsonify({"category": "danger","message": "Your account is blocked!"}), 401
         additional_claims = {"user_id": user.id, "role": "user"}
@@ -201,12 +205,21 @@ def update_lot(lot_id):
                     db.session.add(ParkingSpot(lot_id=lot.id))
             elif new_spots_count < prev_spots_count:
                 spots_to_remove = prev_spots_count - new_spots_count
-                excess_spots = ParkingSpot.query.filter_by(
-                    lot_id=lot.id, 
+                available_spots = ParkingSpot.query.filter_by(
+                    lot_id=lot.id,
+                    status='Available',
                     deleted=False
-                ).order_by(ParkingSpot.id.desc()).limit(spots_to_remove).all()
-                for spot in excess_spots:
+                ).order_by(ParkingSpot.id.desc()).all()
+
+                if len(available_spots) < spots_to_remove:
+                    return jsonify({
+                        "message": f"Cannot reduce spots by {spots_to_remove}. Only {len(available_spots)} available spots can be deleted.",
+                        "category": "danger"
+                    }), 400
+
+                for spot in available_spots[:spots_to_remove]:
                     spot.deleted = True
+
 
         lot.number_of_spots = new_spots_count
         db.session.commit()
@@ -338,6 +351,136 @@ def toggle_block(userId):
         return jsonify({"message": "Changed user block status", "category": "success"}), 200
 
 
+@app.post("/user/dashboard")
+@jwt_required()
+def user_dashboard():
+    username = request.json.get("username")
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({"message": "User not found.", "category": "danger"}), 404
+
+    # Query results
+    results = db.session.query(ReserveParkingSpot, ParkingSpot, ParkingLot)\
+        .join(ParkingSpot, ReserveParkingSpot.spot_id == ParkingSpot.id)\
+        .join(ParkingLot, ParkingSpot.lot_id == ParkingLot.id)\
+        .filter(ReserveParkingSpot.user_id == user.id)\
+        .order_by(db.desc(ReserveParkingSpot.parking_timestamp))\
+        .all()
+
+    parking_history = []
+    for res, spot, lot in results:
+        start_time = res.parking_timestamp
+        end_time = res.leaving_timestamp or datetime.now(timezone.utc)
+
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+
+        if end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
+        
+        duration_hours = (end_time - start_time).total_seconds() / 3600
+        hours_rounded = math.ceil(duration_hours)
+
+        cost = hours_rounded * lot.price
+
+        parking_history.append({
+            'id': res.id,
+            'spot_id': res.spot_id,
+            'parking_name': lot.prime_location_name,
+            'parking_address': f"{lot.address}, {lot.pincode}",
+            'vehicle_number': res.vehicle_number,
+            'parking_time': res.parking_timestamp,
+            'leaving_time': res.leaving_timestamp,
+            'parking_cost': res.parking_cost or round(cost, 2),
+        })
+
+
+    parking_lots = []
+    for lot in ParkingLot.query.filter_by(deleted=False).all():
+        occupied_count = ParkingSpot.query.filter(ParkingSpot.lot_id == lot.id, ParkingSpot.deleted != True, ParkingSpot.status == 'Occupied').count()
+        available_spots = lot.number_of_spots - occupied_count if occupied_count < lot.number_of_spots else 0
+
+        parking_lots.append({
+            "id": lot.id,
+            "prime_location_name": lot.prime_location_name,
+            "address": lot.address,
+            "pincode": lot.pincode,
+            "price": lot.price,
+            "available_spots": available_spots,
+        })
+
+    return jsonify(
+        message="User parking history fetched successfully",
+        category="success",
+        parking_history=parking_history,
+        parking_lots=parking_lots,
+    ), 200
+
+
+@app.post("/user/book")
+@jwt_required()
+def book_parking():
+    try:
+        username = request.json.get("username")
+        vehicle_number = request.json.get("vehicle_number")
+        lot_id = request.json.get("lot_id")
+
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            return jsonify({"message": "User doesn't exit", "category": "danger",}), 404
+
+        spot = ParkingSpot.query.filter_by(lot_id=lot_id, status='Available').order_by(db.asc(ParkingSpot.id)).first()
+        if not spot:
+            return jsonify({"message": "Parking spot not found", "category": "danger"}), 404
+        
+        db.session.add(ReserveParkingSpot(spot_id=spot.id, user_id=user.id, vehicle_number=vehicle_number))
+        spot.status = 'Occupied'
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "message": f"Error adding parking spot: {str(e)}",
+            "category": "danger"
+        }), 500
+
+    db.session.commit()
+    return jsonify({"category": "success", "message": "Car parked successfully"}), 200
+
+
+@app.post("/user/release-vehicle")
+@jwt_required()
+def release_vehicle():
+    try:
+        parking_history_id = request.json.get("parking_history_id")
+        parking_cost = request.json.get("parking_cost")
+        if not parking_history_id:
+            return jsonify({"message": "Parking history ID is required", "category": "danger"}), 400
+
+        history = ReserveParkingSpot.query.filter_by(id=parking_history_id).first()
+        if not history:
+            return jsonify({"message": "Reservation not found", "category": "danger"}), 404
+
+        spot = ParkingSpot.query.filter_by(id=history.spot_id).first()
+        if not spot:
+            return jsonify({"message": "Parking spot not found", "category": "danger"}), 404
+
+        history.leaving_timestamp = datetime.now(timezone.utc)
+        history.parking_cost = parking_cost
+        spot.status = 'Available'
+
+        db.session.commit()
+
+        return jsonify({
+            "message": "Vehicle released and spot marked as available.",
+            "category": "success"
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            "message": f"Error releasing vehicle: {str(e)}",
+            "category": "danger"
+        }), 500
 
 
 @app.get('/fetch-claims')
