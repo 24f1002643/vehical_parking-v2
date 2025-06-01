@@ -33,16 +33,6 @@ export default {
                         <li class="nav-item">
                             <router-link to="/admin/summary" class="nav-link px-3">Summary</router-link>
                         </li>
-                        <li class="nav-item">
-                            <input
-                            class="form-control"
-                            type="search"
-                            placeholder="Search"
-                            aria-label="Search"
-                            v-model="searchQuery"
-                            @input="handleSearchInput"
-                            >
-                        </li>
                     </template>
 
                     <!-- User -->

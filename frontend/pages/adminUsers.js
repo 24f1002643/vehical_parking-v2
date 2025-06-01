@@ -1,36 +1,43 @@
 export default {
     template: `
         <!-- Users -->
-        <div class="d-flex justify-content-center mt-5">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-info text-white d-flex align-items-center justify-content-between">
-                        <h3 class="text-center w-100 card-title m-0">Registered Users</h3>
-                    </div>
-                    <div class="card-body">
-                        <table class="table table-striped mb-0 text-center">
-                            <thead>
-                                <tr>
-                                    <th class="text-center">ID</th>
-                                    <th class="text-center">Name</th>
-                                    <th class="text-center">Username</th>
-                                    <th class="text-center">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="user in users" :key="user.id">
-                                    <td>{{ user.id }}</td>
-                                    <td>{{ user.name }}</td>
-                                    <td>{{ user.username }}</td>
-                                    <td>
-                                        <button @click="toggleBlock(user.id)" 
-                                                :class="['btn', user.blocked ? 'btn-secondary' : 'btn-danger']">
-                                            {{ user.blocked ? 'Unblock' : 'Block' }}
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+        <div>
+            <div class="col-12 d-flex justify-content-center mb-4 mt-4">
+                <div class="input-group w-50">
+                    <input type="text" class="form-control" placeholder="Search users" v-model="searchQuery">
+                </div>
+            </div>
+            <div class="d-flex justify-content-center mt-5">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header bg-info text-white d-flex align-items-center justify-content-between">
+                            <h3 class="text-center w-100 card-title m-0">Registered Users</h3>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-striped mb-0 text-center">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center">ID</th>
+                                        <th class="text-center">Name</th>
+                                        <th class="text-center">Username</th>
+                                        <th class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="user in filteredUsers" :key="user.id">
+                                        <td>{{ user.id }}</td>
+                                        <td>{{ user.name }}</td>
+                                        <td>{{ user.username }}</td>
+                                        <td>
+                                            <button @click="toggleBlock(user.id)" 
+                                                    :class="['btn', user.blocked ? 'btn-secondary' : 'btn-danger']">
+                                                {{ user.blocked ? 'Unblock' : 'Block' }}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -41,10 +48,23 @@ export default {
             users: {},
             message: null,
             category: null,
+            searchQuery: '',
+
         };
     },
     mounted() {
         this.fetchUsers();
+    },
+    computed: {
+        filteredUsers() {
+            if (!this.searchQuery) return Object.values(this.users);
+
+            const query = this.searchQuery.toLowerCase();
+            return Object.values(this.users).filter(user =>
+                user.name.toLowerCase().includes(query) ||
+                user.username.toLowerCase().includes(query)
+            );
+        }
     },
     methods: {
         async fetchUsers() {

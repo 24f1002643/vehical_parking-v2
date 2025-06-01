@@ -18,6 +18,9 @@ export default {
                     <div class="form-group mb-3">
                         <input type="text" id="username" v-model="username" class="form-control" placeholder="Username" required>
                     </div>
+                    <div class="form-group mb-3">
+                        <input type="email" id="email" v-model="email" class="form-control" placeholder="Email" required>
+                    </div>
                     <div class="form-group mb-4">
                         <input type="password" id="password" v-model="password" class="form-control" placeholder="Password" required>
                     </div>
@@ -34,6 +37,7 @@ export default {
         return {
             name: null,
             username: null,
+            email: null,
             password: null,
             message: null,      
             category: null,
@@ -50,6 +54,7 @@ export default {
                     body: JSON.stringify({
                         'name': this.name,
                         'username': this.username,
+                        'email': this.email,
                         'password': this.password
                     })
                 });

@@ -6,6 +6,13 @@ export default {
                     {{ message }}
                 </div>
             </div>
+
+            <div class="d-flex justify-content-end mt-3 me-4">
+                <button @click="exportCSV" class="btn btn-primary">
+                    <span>Download Parking CSV</span>
+                </button>
+            </div>
+
             <div v-if="currentState === 'dashboard'">
                 <div class="d-flex justify-content-center mt-5">
                     <div class="col-md-10">
@@ -270,6 +277,59 @@ export default {
                 } catch (error) {
                     console.log("Booking error:", error);
                 }
+            }
+        },
+        async exportCSV() {
+            try {
+                const res = await fetch(location.origin + '/export-csv', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    },
+                });
+
+                const data = await res.json();
+                this.message = data.message;
+                this.category = data.category;
+
+                if (!res.ok) return;
+
+                const userId = JSON.parse(atob(localStorage.getItem('token').split('.')[1])).user_id;
+
+                // Poll every 2 seconds until file is ready (max 30s)
+                const pollUntilReady = async (attempt = 0) => {
+                    if (attempt > 15) {
+                        this.message = "Export timed out. Try again later.";
+                        this.category = "danger";
+                        return;
+                    }
+
+                    const check = await fetch(`${location.origin}/check-csv/${userId}`, {
+                        headers: {
+                            'Authorization': 'Bearer ' + localStorage.getItem('token')
+                        }
+                    });
+
+                    const status = await check.json();
+
+                    if (status.ready) {
+                        const link = document.createElement('a');
+                        link.href = `${location.origin}/download-csv/${userId}`;
+                        link.download = `parking_data_user_${userId}.csv`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    } else {
+                        setTimeout(() => pollUntilReady(attempt + 1), 2000);
+                    }
+                };
+
+                pollUntilReady();
+
+            } catch (error) {
+                this.message = 'An unexpected error occurred.';
+                this.category = 'danger';
             }
         },
         formatDateTime(datetime) {

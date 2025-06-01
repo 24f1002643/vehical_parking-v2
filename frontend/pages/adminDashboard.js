@@ -14,7 +14,12 @@ export default {
                         </button>
                     </div>
                     <div class="row justify-content-center">
-                        <div class="col-md-5 mb-4 mx-2" v-for="lot in lots" :key="lot.id">
+                        <div class="col-12 d-flex justify-content-center mb-4">
+                            <div class="input-group w-50">
+                                <input type="text" class="form-control" placeholder="Search parking name/location" v-model="searchQuery">
+                            </div>
+                        </div>
+                        <div class="col-md-5 mb-4 mx-2" v-for="lot in filteredParkingLots" :key="lot.id">
                             <div class="card h-100 shadow-sm">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -24,6 +29,9 @@ export default {
                                             <button @click="deleteLot(lot.id)" class="btn btn-sm btn-outline-danger">Delete</button>
                                         </div>
                                     </div>
+                                    <p class="text mb-3">
+                                        Address: {{ lot.address }}, {{ lot.pincode }}
+                                    </p>
                                     <p class="text-success small mb-3">
                                         Occupied: {{ lot.occupied }}/{{ lot.number_of_spots }}
                                     </p>
@@ -135,7 +143,7 @@ export default {
                                             <td>{{ reservation.vehicle_number }}</td>
                                             <td>{{ formatDateTime(reservation.parking_time) }}</td>
                                             <td>{{ formatDateTime(reservation.leaving_time) }}</td>
-                                            <td>{{ reservation.parking_cost ? reservation.parking_cost : N/A }}</td>
+                                            <td>{{ reservation.parking_cost ? reservation.parking_cost : 'N/A' }}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -155,6 +163,8 @@ export default {
             message: null,
             messageTimer: null,
             category: null,
+            searchQuery: '',
+
 
             // Add lot details
             lot_id: null,
@@ -174,6 +184,18 @@ export default {
                 this.category = null;
             }, 4000);
             }
+        }
+    },
+    computed: {
+        filteredParkingLots() {
+            if (!this.searchQuery) return Object.values(this.lots);
+
+            const query = this.searchQuery.toLowerCase();
+            return Object.values(this.lots).filter(lot =>
+                lot.name.toLowerCase().includes(query) ||
+                lot.address.toLowerCase().includes(query) ||
+                lot.pincode.includes(query)
+            );
         }
     },
     mounted() {
@@ -246,6 +268,7 @@ export default {
                     const err = await res.json();  
                     this.message = err.message; 
                     this.category = err.category;
+                    this.fetchAdminDashboard();
                 }
             } catch (error) {
                 this.message = 'An unexpected error occurred.';
