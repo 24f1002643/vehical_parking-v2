@@ -14,6 +14,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(20), nullable=False)
     username = db.Column(db.String(20), unique=True, nullable=False)
+    email = db.Column(db.String(127), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     date_created = db.Column(db.DateTime, default=db.func.current_timestamp())
     blocked = db.Column(db.Boolean, default=False)
@@ -23,7 +24,7 @@ class User(db.Model):
 class ParkingLot(db.Model):
     __tablename__ = 'parking_lot'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    prime_location_name = db.Column(db.String(31), nullable=False)
+    prime_location_name = db.Column(db.String(31), unique=True, nullable=False)
     address = db.Column(db.String(127), nullable=False)
     pincode = db.Column(db.String(7), nullable=False)
     price = db.Column(db.Float, nullable=False) #price per hour

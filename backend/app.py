@@ -1,25 +1,54 @@
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
+from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, Admin, User, ParkingLot, ParkingSpot, ReserveParkingSpot
 import os
 from datetime import datetime, timezone
-import math
+from celery import Celery, shared_task
+import csv
+from requests.exceptions import RequestException
+import smtplib
+
 
 
 app = Flask(__name__,
             template_folder='../frontend',
             static_folder='../frontend',
             static_url_path='/static')
+
+app.config['JWT_SECRET_KEY'] = '0987654321'
+
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///database.sqlite3"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+app.config['broker_url'] = 'redis://localhost:6379/0'
+app.config['result_backend'] = 'redis://localhost:6379/0'
 
-app.config['JWT_SECRET_KEY'] = '0987654321'
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = '24f1002643@ds.study.iitm.ac.in'
+app.config['MAIL_PASSWORD'] = 'acgb wqfs ejkc wzyw'
+app.config['MAIL_DEFAULT_SENDER'] = ('ParkingApp', '24f1002643@ds.study.iitm.ac.in')
+
+mail = Mail(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 jwt = JWTManager(app)
 
+def make_celery(app):
+    celery = Celery(app.import_name, backend=app.config['result_backend'], broker=app.config['broker_url'])
+    celery.conf.update(app.config)
+    class ContextTask(celery.Task):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+    celery.Task = ContextTask
+    return celery
+
+celery = make_celery(app)
+celery.conf.update(app.config)
 
 db.init_app(app)
 with app.app_context():
@@ -31,6 +60,89 @@ with app.app_context():
         print("Successfully created database")
 
 
+@celery.task(name="app.export_parking_data")
+def export_parking_data(user_id):
+    parking_details = ReserveParkingSpot.query.filter_by(user_id=user_id).order_by(ReserveParkingSpot.parking_timestamp).all()
+    if not parking_details:
+        return {"category": "danger", "message": "No parking details found!"}
+
+    data = [
+        {
+            "spot_id": row.spot_id,
+            "user_id": row.user_id,
+            "vehicle_number": row.vehicle_number,
+            "parking_timestamp": row.parking_timestamp,
+            "leaving_timestamp": row.leaving_timestamp,
+            "parking_cost": row.parking_cost,
+        } for row in parking_details
+    ]
+
+    os.makedirs("exports", exist_ok=True)
+    filename = f"exports/parking_data_user_{user_id}.csv"
+    
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=data[0].keys())
+        writer.writeheader()
+        writer.writerows(data)
+    
+    return {"category": "success", "message": "Parking details found!"}
+
+
+
+@app.get("/download-csv/<int:user_id>")
+def download_csv(user_id):
+    filename = f"exports/parking_data_user_{user_id}.csv"
+    if os.path.exists(filename):
+        return send_file(filename, as_attachment=True)
+    else:
+        return jsonify({"message": "File not found.", "category": "danger"}), 404
+
+
+@app.get("/check-csv/<int:user_id>")
+@jwt_required()
+def check_csv(user_id):
+    filename = f"exports/parking_data_user_{user_id}.csv"
+    return jsonify({"ready": os.path.exists(filename)})
+
+
+
+@app.post("/export-csv")
+@jwt_required()
+def export_csv():
+    claims = get_jwt()
+    user_id = claims.get("user_id")
+
+    data = export_parking_data.delay(user_id)
+    return jsonify({"message": "Exported!", "category": "success"}), 200
+
+
+@celery.task(name="app.notify_users_new_lot")
+def notify_users_new_lot(lot_id):
+    with app.app_context():
+        try:
+            lot = ParkingLot.query.filter_by(id=lot_id).first()
+            if not lot:
+                return "Lot not found!"
+
+            users = User.query.all()
+            message = f"🚗 New parking lot available: {lot.prime_location_name} at {lot.address}, {lot.pincode} only at rupees {lot.price} per hour.\nBook now!"
+
+            for user in users:
+                try:
+                    if user.email:
+                        msg = Message(
+                            subject="New Parking Lot Alert",
+                            recipients=[user.email],
+                            body=message
+                        )
+                        mail.send(msg)
+                except (RequestException, smtplib.SMTPException, ConnectionError) as e:
+                    print(f"Failed to notify user {user.id}: {e}")
+
+        except Exception as e:
+            print(f"Notification task failed: {e}")
+
+
 @app.route('/')
 def index():
   return render_template('index.html')
@@ -40,6 +152,7 @@ def index():
 def register():
     name = request.json.get('name')
     username = request.json.get('username')
+    email = request.json.get('email')
     password = request.json.get('password')
     user = User.query.filter_by(username=username).first()
     if user:
@@ -48,6 +161,7 @@ def register():
         User(
             name=name,
             username=username,
+            email=email,
             password=generate_password_hash(password)
         )
     )
@@ -138,7 +252,6 @@ def admin_dashboard():
     ), 200
 
 
-
 @app.post("/add-lot")
 @jwt_required()
 def add_lot():
@@ -153,17 +266,26 @@ def add_lot():
         price = request.json.get('price')
         number_of_spots = request.json.get('number_of_spots')
 
-        db.session.add(
-            ParkingLot(
-                prime_location_name=name,
-                address=address,
-                pincode=pincode,
-                price=price,
-                number_of_spots=number_of_spots,
-                parking_spots=[ParkingSpot() for _ in range(int(number_of_spots))]
-            )
+        new_lot = ParkingLot(
+            prime_location_name=name,
+            address=address,
+            pincode=pincode,
+            price=price,
+            number_of_spots=number_of_spots,
+            parking_spots=[ParkingSpot() for _ in range(int(number_of_spots))]
         )
+        db.session.add(new_lot)
         db.session.commit()
+
+        try:
+            notify_users_new_lot.delay(new_lot.id)
+        except Exception as e:
+            return jsonify({
+                "message": f"Failed to trigger email notifications: {e}",
+                "category": "danger"
+            }), 500
+
+
         return jsonify({
             "category": "success",
             "message": "Parking lot added successful!"
@@ -175,6 +297,7 @@ def add_lot():
             "message": f"Error adding parking lot: {str(e)}",
             "category": "danger"
         }), 500
+
     
 
 @app.post("/update-lot/<int:lot_id>")
@@ -379,7 +502,7 @@ def user_dashboard():
             end_time = end_time.replace(tzinfo=timezone.utc)
         
         duration_hours = (end_time - start_time).total_seconds() / 3600
-        hours_rounded = math.ceil(duration_hours)
+        hours_rounded = -(-duration_hours // 1) # Equivalent to math.ceil
 
         cost = hours_rounded * lot.price
 
