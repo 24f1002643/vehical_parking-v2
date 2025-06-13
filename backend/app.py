@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, Admin, User, ParkingLot, ParkingSpot, ReserveParkingSpot
 import os
 from datetime import datetime, timezone
-from celery import Celery, shared_task
+from celery import Celery
 import csv
 from requests.exceptions import RequestException
 import smtplib
@@ -105,15 +105,14 @@ def check_csv(user_id):
     return jsonify({"ready": os.path.exists(filename)})
 
 
-
 @app.post("/export-csv")
 @jwt_required()
 def export_csv():
     claims = get_jwt()
     user_id = claims.get("user_id")
-
-    data = export_parking_data.delay(user_id)
-    return jsonify({"message": "Exported!", "category": "success"}), 200
+    
+    result = export_parking_data(user_id)  # Call synchronously
+    return jsonify(result), 200 if result["category"] == "success" else 404
 
 
 @celery.task(name="app.notify_users_new_lot")
@@ -472,6 +471,65 @@ def toggle_block(userId):
         return jsonify({"message": "Invalid value for 'blocked'.", "category": "danger"}), 400
     else:
         return jsonify({"message": "Changed user block status", "category": "success"}), 200
+
+
+
+@app.get('/admin/summary')
+def lot_reservations_summary():
+    from sqlalchemy import func, extract
+    from datetime import datetime
+
+    current_year = datetime.now().year
+
+    # --- Reservation count per parking lot ---
+    lot_data = (
+        db.session.query(ParkingLot.prime_location_name, func.count(ReserveParkingSpot.id))
+        .join(ParkingSpot, ParkingLot.id == ParkingSpot.lot_id)
+        .join(ReserveParkingSpot, ReserveParkingSpot.spot_id == ParkingSpot.id)
+        .filter(ParkingLot.deleted == False, ParkingSpot.deleted == False)
+        .group_by(ParkingLot.id, ParkingLot.prime_location_name)
+        .order_by(func.count(ReserveParkingSpot.id).desc())
+        .limit(10)
+        .all()
+    )
+
+    lot_result = {
+        "labels": [row[0] for row in lot_data],
+        "data": [row[1] for row in lot_data]
+    }
+
+    # --- Revenue per month from completed parkings ---
+    revenue_raw = (
+        db.session.query(
+            extract('month', ReserveParkingSpot.leaving_timestamp).label('month'),
+            func.sum(ReserveParkingSpot.parking_cost).label('total')
+        )
+        .filter(
+            ReserveParkingSpot.leaving_timestamp != None,
+            extract('year', ReserveParkingSpot.leaving_timestamp) == current_year
+        )
+        .group_by('month')
+        .all()
+    )
+
+    # Fill all 12 months with 0 by default
+    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    revenue_dict = {i: 0 for i in range(1, 13)}  # keys: 1 to 12
+
+    for month, total in revenue_raw:
+        revenue_dict[int(month)] = float(total)
+
+    revenue_result = {
+        "labels": month_names,
+        "data": [revenue_dict[i] for i in range(1, 13)]
+    }
+
+    return jsonify({
+        "lot": lot_result,
+        "revenue": revenue_result
+    })
+
 
 
 @app.post("/user/dashboard")

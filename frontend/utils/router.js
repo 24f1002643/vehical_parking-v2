@@ -4,6 +4,7 @@ import register from "../pages/register.js";
 import adminLogin from "../pages/adminLogin.js";
 import adminDashboard from "../pages/adminDashboard.js"
 import adminUsers from "../pages/adminUsers.js"
+import adminSummary from "../pages/adminSummary.js"
 import userDashboard from "../pages/userDashboard.js"
 
 const routes = [
@@ -13,6 +14,7 @@ const routes = [
     {path : '/admin/login', component : adminLogin},
     {path : '/admin/dashboard', component : adminDashboard},
     {path : '/admin/users', component : adminUsers},
+    {path : '/admin/summary', component : adminSummary},
     {path : '/user/dashboard', component : userDashboard},
     {path : '/logout', component : {
         template : `
