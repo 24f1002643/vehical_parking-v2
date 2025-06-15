@@ -297,7 +297,6 @@ export default {
 
                 const userId = JSON.parse(atob(localStorage.getItem('token').split('.')[1])).user_id;
 
-                // Poll every 2 seconds until file is ready (max 30s)
                 const pollUntilReady = async (attempt = 0) => {
                     if (attempt > 15) {
                         this.message = "Export timed out. Try again later.";

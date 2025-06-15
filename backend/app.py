@@ -481,7 +481,6 @@ def lot_reservations_summary():
 
     current_year = datetime.now().year
 
-    # --- Reservation count per parking lot ---
     lot_data = (
         db.session.query(ParkingLot.prime_location_name, func.count(ReserveParkingSpot.id))
         .join(ParkingSpot, ParkingLot.id == ParkingSpot.lot_id)
@@ -498,7 +497,6 @@ def lot_reservations_summary():
         "data": [row[1] for row in lot_data]
     }
 
-    # --- Revenue per month from completed parkings ---
     revenue_raw = (
         db.session.query(
             extract('month', ReserveParkingSpot.leaving_timestamp).label('month'),
@@ -512,7 +510,6 @@ def lot_reservations_summary():
         .all()
     )
 
-    # Fill all 12 months with 0 by default
     month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     revenue_dict = {i: 0 for i in range(1, 13)}  # keys: 1 to 12
@@ -540,7 +537,6 @@ def user_dashboard():
     if not user:
         return jsonify({"message": "User not found.", "category": "danger"}), 404
 
-    # Query results
     results = db.session.query(ReserveParkingSpot, ParkingSpot, ParkingLot)\
         .join(ParkingSpot, ReserveParkingSpot.spot_id == ParkingSpot.id)\
         .join(ParkingLot, ParkingSpot.lot_id == ParkingLot.id)\
