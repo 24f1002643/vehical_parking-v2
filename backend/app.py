@@ -18,7 +18,7 @@ app = Flask(__name__,
             static_folder='../frontend',
             static_url_path='/static')
 
-app.config['JWT_SECRET_KEY'] = '0987654321'
+app.config['JWT_SECRET_KEY'] = '{security key}'
 
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///database.sqlite3"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -29,9 +29,9 @@ app.config['result_backend'] = 'redis://localhost:6379/0'
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = '24f1002643@ds.study.iitm.ac.in'
-app.config['MAIL_PASSWORD'] = 'acgb wqfs ejkc wzyw'
-app.config['MAIL_DEFAULT_SENDER'] = ('ParkingApp', '24f1002643@ds.study.iitm.ac.in')
+app.config['MAIL_USERNAME'] = '{your gmail id}'
+app.config['MAIL_PASSWORD'] = '{app password you created in your gmail id}'
+app.config['MAIL_DEFAULT_SENDER'] = ('ParkingApp', '{your gmail id}')
 
 mail = Mail(app)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
